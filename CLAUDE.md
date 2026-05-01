@@ -24,7 +24,7 @@ python src/utopia/create_dataset/create_dataset.py
 
 ## Architecture
 
-This is a PySpark data processing project. The package lives under `src/utopia/` (src layout).
+This is a PySpark (using only spark RDD) data processing project. The package lives under `src/utopia/` (src layout).
 
 **Dependency groups** (defined in `pyproject.toml`):
 - `dev` — flake8, flake8-bugbear, flake8-isort (linting only)
