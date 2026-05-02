@@ -5,24 +5,23 @@ from pyspark.broadcast import Broadcast
 from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, Row, SparkSession
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
-
 from variables import Env
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process detection events")
     parser.add_argument(
-        "--file1", required=True, help="Input path for detection events in parquet format"
+        "--file1",
+        required=True,
+        help=("Input path for detection events in parquet format"),
     )
     parser.add_argument(
         "--file2",
         required=True,
-        help="Input path for geographical location dimension in parquet format",
+        help=("Input path for geographical location dimension in parquet format"),
     )
     parser.add_argument(
-        "--output_file", required=True, help=(
-            "Output path for top x result in parquet"
-            )
+        "--output_file", required=True, help=("Output path for top x result in parquet")
     )
     parser.add_argument(
         "--top_x",
@@ -34,20 +33,24 @@ def parse_args() -> argparse.Namespace:
         "--env",
         choices=[Env.LOCAL.value, Env.PROD.value],
         default=Env.LOCAL.value,
-        help="Env affects the settings for pyspark config"
+        help="Env affects the settings for pyspark config",
     )
     return parser.parse_args()
 
 
 def build_spark_session(env: str) -> SparkSession:
     if env == Env.LOCAL.value:
-        return SparkSession.builder.appName("process_event locally") \
-            .master("local[*]") \
+        return (
+            SparkSession.builder.appName("process_event locally")
+            .master("local[*]")
             .getOrCreate()
+        )
     elif env == Env.PROD.value:
-        return SparkSession.builder.appName("process_event in production") \
-            .config("spark.sql.adaptive.enabled", "true") \
+        return (
+            SparkSession.builder.appName("process_event in production")
+            .config("spark.sql.adaptive.enabled", "true")
             .getOrCreate()
+        )
 
 
 def read_parquet(spark: SparkSession, path: str) -> DataFrame:
@@ -111,7 +114,7 @@ def write_output(rdd: RDD, spark: SparkSession, output_path: str) -> None:
 
 def main() -> None:
     args = parse_args()
-    try: 
+    try:
         spark = build_spark_session(args.env)
 
         file1_rdd = read_parquet(spark, args.file1).rdd

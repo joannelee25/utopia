@@ -15,12 +15,23 @@ The output parquet file after processing uses geographical_location from Dataset
 | item_name | varchar(5000) | Item name
 
 ### Design considerations
-1. Functional programming is used instead of Object Oriented Programming as functional programming is aligned with spark's distributed structure for parallelism.
+1. Functional programming is used instead of Object Oriented Programming as functional programming is aligned with spark's distributed structure for parallelism in data processing.
+2. In `process_event.py`, broadcast is used for the static file dataset B to cache the data at each worker node instead of sending it repeatedly at each task. 
 
 #### SPARK CONFIGURATION
 `process_event.py` allows for different spark configuration settings. By default local configuration setting is used. 
 
-Production configuration can be supplied
+To run development workloads locally, 
+```bash
+spark-submit \
+process_event.py \
+--file1 <file path for dataset A> \
+--file2 <file path for dataset B> \
+--output_file <output file path> \
+--top_x <number of top count to find> \
+```
+
+To run production workloads, configuration can be supplied
 ```bash
 spark-submit \
   --master yarn \
@@ -30,5 +41,10 @@ spark-submit \
   --num-executors 10 \
   --conf spark.sql.shuffle.partitions=160 \
   --conf spark.sql.adaptive.enabled=true \
-  process_event.py --file1 <file path for dataset A> --file2 <file path for dataset B> --output_file <output file path> --top_x <number of top count to find> --env prod
+  process_event.py \
+  --file1 <file path for dataset A> \
+  --file2 <file path for dataset B> \
+  --output_file <output file path> \
+  --top_x <number of top count to find> \
+  --env prod
 ```
