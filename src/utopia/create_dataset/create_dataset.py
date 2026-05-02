@@ -32,9 +32,7 @@ def generate_geo_names(num_rows: int, seed: int) -> list[str]:
     return [faker.city() for _ in range(num_rows)]
 
 
-def build_dataset_b(
-    num_rows: int, rng: np.random.Generator, seed: int
-) -> pd.DataFrame:
+def build_dataset_b(num_rows: int, rng: np.random.Generator, seed: int) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "geographical_location_oid": generate_geo_oids(num_rows, rng),

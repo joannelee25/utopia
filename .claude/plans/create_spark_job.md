@@ -30,8 +30,8 @@ build_spark_session()                    → SparkSession
 read_parquet(spark, path)                → DataFrame        # Spark DataFrame API only
 count_unique_detections(rdd)             → RDD[((str, int), int)]
 get_top_x_ranked(counted_rdd, top_x)     → RDD[(int, tuple[str, int])]
-build_location_lookup(rdd)               → RDD[(int, str)]
-enrich_with_location(top_x_rdd, loc_rdd) → RDD[Row]
+build_location_broadcast(rdd, sc)        → Broadcast[dict[int, str]]
+enrich_with_location(top_x_rdd, bcast)  → RDD[Row]
 write_output(rdd, spark, output_path)    → None             # Spark DataFrame API only
 main()                                   → None
 ```
@@ -47,7 +47,7 @@ main()                                   → None
 |------|------|-------------|
 | `--file1` | `str` | Input path for detection events parquet |
 | `--file2` | `str` | Input path for geographical location dimension parquet |
-| `--output` | `str` | Output path for result parquet |
+| `--output_file` | `str` | Output path for result parquet |
 | `--top_x` | `int` | Number of top (item_name, location) pairs to return |
 
 ## RDD Transformation Pipeline
@@ -72,19 +72,27 @@ counted_rdd
 ```
 Result type: `RDD[(int, tuple[str, int])]` — key=geo_oid, value=(item_name, rank)
 
-### Step 3 — Build location lookup from file2
+### Step 3 — Build location broadcast from file2
 ```
-file2_rdd
+location_dict = file2_rdd
   .map(row → (geographical_location_oid, geographical_location))
-```
-Result type: `RDD[(int, str)]`
+  .collectAsMap()
 
-### Step 4 — Join and produce output rows
+broadcast_locations = spark.sparkContext.broadcast(location_dict)
 ```
-top_x_rdd.join(location_rdd)
-  .map((geo_oid, ((name, rank), location)) →
-      Row(geographical_location=location, item_rank=rank, item_name=name))
+file2 is a small dimension table (~10,000 rows), so collecting to driver and broadcasting avoids a shuffle entirely.
+
+### Step 4 — Enrich top X results with location name
 ```
+top_x_rdd
+  .map((geo_oid, (name, rank)) →
+      Row(
+          geographical_location=broadcast_locations.value.get(geo_oid),
+          item_rank=rank,
+          item_name=name,
+      ))
+```
+Rows where `geo_oid` has no matching location will have `geographical_location=None` (safe given referential integrity guaranteed by dataset generator).
 
 ### Step 5 — Write output
 Convert final RDD to DataFrame via `spark.createDataFrame(rows_rdd, schema)` and write as parquet.

@@ -2,24 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Commands
+## Environment
+
+All packages are installed in a conda environment named `utopia`. Always activate it before running any commands. Do not use `pip` directly — use `conda run` or activate the environment first.
 
 ```bash
-# Install all dependency groups (dev + create_data)
-pip install -e ".[dev,create_data]"
-# or with Poetry:
-poetry install --with dev --extras create_data
+# Activate environment
+conda activate utopia
 
+# Install all dependency groups (dev + create_data)
+conda run -n utopia poetry install --with dev --extras create_data
+```
+
+## Commands
+
+Run all commands inside the `utopia` conda environment:
+
+```bash
 # Format
-black src/ tests/
+conda run -n utopia black src/ tests/
 
 # Lint
-flake8 src/ tests/
+conda run -n utopia flake8 src/ tests/
 
 # Generate datasets (writes data/dataset_A.parquet and data/dataset_B.parquet)
-python -m utopia.create_dataset.create_dataset
+conda run -n utopia python -m utopia.create_dataset.create_dataset
 # or directly:
-python src/utopia/create_dataset/create_dataset.py
+conda run -n utopia python src/utopia/create_dataset/create_dataset.py
+
+# Run tests
+conda run -n utopia pytest tests/
 ```
 
 ## Architecture
