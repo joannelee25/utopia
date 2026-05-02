@@ -6,6 +6,8 @@ from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, Row, SparkSession
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
 
+from variables import Env
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process detection events")
@@ -18,7 +20,9 @@ def parse_args() -> argparse.Namespace:
         help="Input path for geographical location dimension in parquet format",
     )
     parser.add_argument(
-        "--output_file", required=True, help="Output path for top x result in parquet"
+        "--output_file", required=True, help=(
+            "Output path for top x result in parquet"
+            )
     )
     parser.add_argument(
         "--top_x",
@@ -26,11 +30,24 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Number of top (item_name, location) pairs to return",
     )
+    parser.add_argument(
+        "--env",
+        choices=[Env.LOCAL.value, Env.PROD.value],
+        default=Env.LOCAL.value,
+        help="Env affects the settings for pyspark config"
+    )
     return parser.parse_args()
 
 
-def build_spark_session() -> SparkSession:
-    return SparkSession.builder.appName("process_event").getOrCreate()
+def build_spark_session(env: str) -> SparkSession:
+    if env == Env.LOCAL.value:
+        return SparkSession.builder.appName("process_event locally") \
+            .master("local[*]") \
+            .getOrCreate()
+    elif env == Env.PROD.value:
+        return SparkSession.builder.appName("process_event in production") \
+            .config("spark.sql.adaptive.enabled", "true") \
+            .getOrCreate()
 
 
 def read_parquet(spark: SparkSession, path: str) -> DataFrame:
@@ -94,17 +111,20 @@ def write_output(rdd: RDD, spark: SparkSession, output_path: str) -> None:
 
 def main() -> None:
     args = parse_args()
-    spark = build_spark_session()
+    try: 
+        spark = build_spark_session(args.env)
 
-    file1_rdd = read_parquet(spark, args.file1).rdd
-    file2_rdd = read_parquet(spark, args.file2).rdd
+        file1_rdd = read_parquet(spark, args.file1).rdd
+        file2_rdd = read_parquet(spark, args.file2).rdd
 
-    counted_rdd = count_unique_detections(file1_rdd)
-    top_x_rdd = get_top_x_ranked(counted_rdd, args.top_x)
-    location_bcast = build_location_broadcast(file2_rdd, spark.sparkContext)
-    enriched_rdd = enrich_with_location(top_x_rdd, location_bcast)
+        counted_rdd = count_unique_detections(file1_rdd)
+        top_x_rdd = get_top_x_ranked(counted_rdd, args.top_x)
+        location_bcast = build_location_broadcast(file2_rdd, spark.sparkContext)
+        enriched_rdd = enrich_with_location(top_x_rdd, location_bcast)
 
-    write_output(enriched_rdd, spark, args.output_file)
+        write_output(enriched_rdd, spark, args.output_file)
+    finally:
+        spark.stop()
 
 
 if __name__ == "__main__":
