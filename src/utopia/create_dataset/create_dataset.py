@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +9,7 @@ SEED = 42
 
 # dataset_A constants
 NUM_ROWS_A = 20_000
-DUPLICATE_RATIO = 0.20
+#DUPLICATE_RATIO = 0.20
 NUM_LOCATIONS = 100
 NUM_CAMERAS = 500
 NUM_ITEMS = 40
@@ -29,14 +30,14 @@ def generate_geo_oids(num_rows: int, rng: np.random.Generator) -> np.ndarray:
 def generate_geo_names(num_rows: int, seed: int) -> list[str]:
     faker = Faker()
     faker.seed_instance(seed)
-    return [faker.city() for _ in range(num_rows)]
+    return [faker.unique.city() for _ in range(num_rows)]
 
 
 def build_dataset_b(num_rows: int, rng: np.random.Generator, seed: int) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "geographical_location_oid": generate_geo_oids(num_rows, rng),
-            "geographical_local": generate_geo_names(num_rows, seed),
+            "geographical_location": generate_geo_names(num_rows, seed),
         }
     )
 
@@ -94,6 +95,7 @@ def build_dataset_a(
     rng: np.random.Generator,
     seed: int,
     location_pool: np.ndarray,
+    duplicate_ratio: float,
 ) -> pd.DataFrame:
     df = pd.DataFrame(
         {
@@ -101,7 +103,7 @@ def build_dataset_a(
                 num_rows, location_pool, rng
             ),
             "video_camera_oid": generate_camera_ids(num_rows, NUM_CAMERAS, rng),
-            "detection_oid": generate_detection_ids(num_rows, DUPLICATE_RATIO, rng),
+            "detection_oid": generate_detection_ids(num_rows, duplicate_ratio, rng),
             "item_name": generate_item_names(num_rows, NUM_ITEMS, seed),
             "timestamp_detected": generate_timestamps(num_rows, rng),
         }
@@ -116,16 +118,32 @@ def write_parquet(df: pd.DataFrame, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False, engine="pyarrow")
 
+def parse_arg() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Script to create simulation data for pyspark processing")
+    parser.add_argument(
+        "--dataset_type", required=True, choices=["A", "B"], help="To create dataset A or dataset B"
+    ),
+    parser.add_argument(
+        "--output_file_name", required=True, help="Parquet output file name for the simulated data"
+    )
+    parser.add_argument(
+        "--duplicate_ratio", type=float, default=0.2, help="Takes float value from [0.0 - 1.0] With 0.0 meaning no duplicate and 1.0 meaning all values are the same. Used for dataset A"
+    )
+    return parser.parse_args()
 
 def main() -> None:
+    args = parse_arg()
     rng = np.random.default_rng(SEED)
-    data_dir = Path(__file__).parents[3] / "data"
-    df_b = build_dataset_b(NUM_ROWS_B, rng, SEED)
-    write_parquet(df_b, data_dir / "dataset_B.parquet")
-    df_a = build_dataset_a(
-        NUM_ROWS_A, rng, SEED, df_b["geographical_location_oid"].values
-    )
-    write_parquet(df_a, data_dir / "dataset_A.parquet")
+    data_dir = Path(__file__).parents[3] / "data/raw"
+
+    if args.dataset_type == "B":
+        df_b = build_dataset_b(NUM_ROWS_B, rng, SEED)
+        write_parquet(df_b, data_dir / args.output_file_name)
+    elif args.dataset_type == "A":
+        df_a = build_dataset_a(
+            NUM_ROWS_A, rng, SEED, df_b["geographical_location_oid"].values, args.duplicate_ratio
+        )
+        write_parquet(df_a, data_dir / args.output_file_name)
 
 
 if __name__ == "__main__":
