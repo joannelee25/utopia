@@ -58,3 +58,19 @@ spark-submit \
 ## Distributed Computing Task II
 
 1. If there is a data skew in geographical locations in Dataset A (For eg, 80% of detections are from one city), the shuffle reduceByKey on (item_name, geographical_location_oid) in function `count_unique_detections` will be less efficient as one worker ends up summing majority of the detection counts while others finish quickly and wait. 
+
+The salting technique can be used to spread the hot key. The function `count_unique_detections` will be modified to the following:
+
+```
+import random
+
+def count_unique_detections(rdd: RDD, salt_partitions: int = 10) -> RDD:
+     return (
+         rdd.map(lambda row: (row.detection_oid,row))
+         .reduceByKey(lambda a, b: a)
+         .map(lambda kv: ((kv[1].item_name, kv[1].geographical_location_oid, random.randrange(salt_partitions)),1,))
+         .reduceByKey(add)
+         .map(lambda kv: ((kv[0][0], kv[0][1]), kv[1]))
+         .reduceByKey(add)
+     )
+```
