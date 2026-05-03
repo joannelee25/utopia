@@ -23,6 +23,10 @@ The output parquet file after processing uses geographical_location from Dataset
 #### SPARK CONFIGURATION
 `process_event.py` allows for different spark configuration settings. By default local configuration setting is used. 
 
+In production workloads, the following is enabled to detect and handle skewed joins at runtime by splitting oversized partitions:
+1. Enable AQE: `.config("spark.sql.adaptive.enabled", True)`
+2. Enable skew join optimization: `.config("spark.sql.adaptive.skewJoin.enabled", True)`
+
 To run development workloads locally, 
 ```bash
 spark-submit \
@@ -50,3 +54,7 @@ spark-submit \
   --top_x <number of top count to find> \
   --env prod
 ```
+
+## Distributed Computing Task II
+
+1. If there is a data skew in geographical locations in Dataset A (For eg, 80% of detections are from one city), the shuffle reduceByKey on (item_name, geographical_location_oid) in function `count_unique_detections` will be less efficient as one worker ends up summing majority of the detection counts while others finish quickly and wait. 

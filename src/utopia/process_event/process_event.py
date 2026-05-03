@@ -48,7 +48,8 @@ def build_spark_session(env: str) -> SparkSession:
     elif env == Env.PROD.value:
         return (
             SparkSession.builder.appName("process_event in production")
-            .config("spark.sql.adaptive.enabled", "true")
+            .config("spark.sql.adaptive.enabled", True)
+            .config("spark.sql.adaptive.skewJoin.enabled", True)
             .getOrCreate()
         )
 
