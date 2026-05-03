@@ -16,7 +16,9 @@ The output parquet file after processing uses geographical_location from Dataset
 
 ### Design considerations
 1. Functional programming is used instead of Object Oriented Programming as functional programming is aligned with spark's distributed structure for parallelism in data processing.
-2. In `process_event.py`, broadcast is used for the static file dataset B to cache the data at each worker node instead of sending it repeatedly at each task. 
+2. In `process_event.py`, broadcast is used for the small static file dataset B to cache the data at each worker node instead of doing a join which introduces a shuffle.
+3. When there is a duplicate in detection_oid with different item name, which item is counted is non-deterministic.
+4. When there is a tie during ranking of top x items, which item appears in the top x is non-deterministic.  
 
 #### SPARK CONFIGURATION
 `process_event.py` allows for different spark configuration settings. By default local configuration setting is used. 
@@ -27,7 +29,7 @@ spark-submit \
 process_event.py \
 --file1 <file path for dataset A> \
 --file2 <file path for dataset B> \
---output_file <output file path> \
+--output_path <output file path> \
 --top_x <number of top count to find> \
 ```
 
@@ -44,7 +46,7 @@ spark-submit \
   process_event.py \
   --file1 <file path for dataset A> \
   --file2 <file path for dataset B> \
-  --output_file <output file path> \
+  --output_path <output file path> \
   --top_x <number of top count to find> \
   --env prod
 ```

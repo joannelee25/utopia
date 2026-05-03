@@ -120,7 +120,7 @@ def main() -> None:
         location_bcast = build_location_broadcast(file2_rdd, spark.sparkContext)
         enriched_rdd = enrich_with_location(top_x_rdd, location_bcast)
 
-        write_output(enriched_rdd, spark, args.output_file)
+        write_output(enriched_rdd, spark, args.output_path)
     finally:
         spark.stop()
 
