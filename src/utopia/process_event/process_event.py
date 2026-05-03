@@ -5,7 +5,7 @@ from pyspark.broadcast import Broadcast
 from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, Row, SparkSession
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
-from variables import Env
+from utopia.process_event.variables import Env
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
         help=("Input path for geographical location dimension in parquet format"),
     )
     parser.add_argument(
-        "--output_file", required=True, help=("Output path for top x result in parquet")
+        "--output_path", required=True, help=("Output path for top x result in parquet")
     )
     parser.add_argument(
         "--top_x",
@@ -59,14 +59,9 @@ def read_parquet(spark: SparkSession, path: str) -> DataFrame:
 
 def count_unique_detections(rdd: RDD) -> RDD:
     return (
-        rdd.map(
-            lambda row: (
-                (row.item_name, row.geographical_location_oid, row.detection_oid),
-                None,
-            )
-        )
-        .distinct()
-        .map(lambda kv: ((kv[0][0], kv[0][1]), 1))
+        rdd.map(lambda row: (row.detection_oid, row))
+        .reduceByKey(lambda a, b: a)
+        .map(lambda kv: ((kv[1].item_name, kv[1].geographical_location_oid), 1))
         .reduceByKey(add)
     )
 

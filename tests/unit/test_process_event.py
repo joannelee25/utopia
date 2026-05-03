@@ -13,7 +13,7 @@ def test_count_unique_detections_basic(spark):
         Row(item_name="cat", geographical_location_oid=1, detection_oid=10),
         Row(
             item_name="cat", geographical_location_oid=1, detection_oid=10
-        ),  # duplicate
+        ),  # same detection_oid → deduplicated
         Row(item_name="cat", geographical_location_oid=1, detection_oid=20),
         Row(item_name="dog", geographical_location_oid=2, detection_oid=30),
     ]
@@ -21,6 +21,16 @@ def test_count_unique_detections_basic(spark):
     result = dict(count_unique_detections(rdd).collect())
     assert result[("cat", 1)] == 2
     assert result[("dog", 2)] == 1
+
+
+def test_count_unique_detections_deduplicates_on_detection_oid_only(spark):
+    rows = [
+        Row(item_name="cat", geographical_location_oid=1, detection_oid=10),
+        Row(item_name="dog", geographical_location_oid=2, detection_oid=10),  # same detection_oid
+    ]
+    rdd = spark.sparkContext.parallelize(rows)
+    result = dict(count_unique_detections(rdd).collect())
+    assert sum(result.values()) == 1
 
 
 def test_count_unique_detections_single_row(spark):
