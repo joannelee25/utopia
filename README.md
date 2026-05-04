@@ -56,10 +56,12 @@ spark-submit \
 ```
 
 ## Distributed Computing Task II
+1.	Suppose there is data skew in one of the geographical locations in Dataset A. Please provide another code snippet on how you will be re-implement part of the program to speed up the computations 
 
-1. If there is a data skew in geographical locations in Dataset A (For eg, 80% of detections are from one city), the shuffle reduceByKey on (item_name, geographical_location_oid) in function `count_unique_detections` will be less efficient as one worker ends up summing majority of the detection counts while others finish quickly and wait. 
 
-The salting technique can be used to spread the hot key. The function `count_unique_detections` will be modified to the following:
+If there is a data skew in geographical locations in Dataset A (For eg, 80% of detections are from one city), the shuffle reduceByKey on (item_name, geographical_location_oid) in function `count_unique_detections` will be less efficient as one worker ends up summing majority of the detection counts while others finish quickly and wait. 
+
+The salting technique can be used to spread the hot key. The function `count_unique_detections` will be modified to take in a salt_partition parameter:
 
 ```
 import random

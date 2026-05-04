@@ -5,6 +5,7 @@ from pyspark.broadcast import Broadcast
 from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, Row, SparkSession
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
+
 from utopia.process_event.variables import Env
 
 
@@ -59,6 +60,16 @@ def read_parquet(spark: SparkSession, path: str) -> DataFrame:
 
 
 def count_unique_detections(rdd: RDD) -> RDD:
+    """
+    Args:
+         rdd: RDD[Row] with fields  geographical_location_oid, video_camera_oid
+         , detection_oid, item_name, timestamp_detected.
+
+    Returns:
+         RDD of ((item_name, geographical_location_oid), int representing count
+         ) — deduplicated
+         by detection_oid before counting.
+    """
     return (
         rdd.map(lambda row: (row.detection_oid, row))
         .reduceByKey(lambda a, b: a)
@@ -68,6 +79,13 @@ def count_unique_detections(rdd: RDD) -> RDD:
 
 
 def get_top_x_ranked(counted_rdd: RDD, top_x: int) -> RDD:
+    """
+    Args:
+        counted_rdd: RDD of ((item_name, geographical_location_oid), count)
+        top_x: number of top-ranked items to return (by descending count)
+    Returns:
+        RDD of (geographical_location_oid, (item_name, rank)) where rank is 1-indexed
+    """
     return (
         counted_rdd.sortBy(lambda kv: kv[1], ascending=False)
         .zipWithIndex()
