@@ -78,6 +78,16 @@ def test_get_top_x_ranked_top_x_larger_than_data(spark):
     result = get_top_x_ranked(rdd, top_x=100).collect()
     assert len(result) == 2
 
+def test_get_top_x_ranked_top_x_smaller_than_data(spark):
+    data = [
+        (("a", 1), 5),
+        (("b", 2), 10),
+        (("c", 3), 3),
+    ]
+    rdd = spark.sparkContext.parallelize(data)
+    result = get_top_x_ranked(rdd, top_x=2).collect()
+    assert len(result) == 2
+
 
 def test_build_location_broadcast(spark):
     rows = [
