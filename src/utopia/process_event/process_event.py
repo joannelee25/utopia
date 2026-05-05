@@ -127,16 +127,15 @@ def enrich_with_location(top_x_rdd: RDD, bcast: Broadcast) -> RDD:
     )
 
 
-OUTPUT_SCHEMA = StructType(
-    [
-        StructField("geographical_location", StringType(), True),
-        StructField("item_rank", IntegerType(), False),
-        StructField("item_name", StringType(), True),
-    ]
-)
-
-
 def write_output(rdd: RDD, spark: SparkSession, output_path: str) -> None:
+    OUTPUT_SCHEMA = StructType(
+        [
+            StructField("geographical_location", StringType(), True),
+            StructField("item_rank", IntegerType(), False),
+            StructField("item_name", StringType(), True),
+        ]
+    )
+
     spark.createDataFrame(rdd, OUTPUT_SCHEMA).write.mode("overwrite").parquet(
         output_path
     )
