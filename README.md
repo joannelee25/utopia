@@ -19,6 +19,7 @@ The output parquet file after processing uses geographical_location from Dataset
 2. In `process_event.py`, broadcast is used for the small static file dataset B to cache the data at each worker node instead of doing a join which introduces a shuffle.
 3. When there is a duplicate in detection_oid with different item name, which item is counted is non-deterministic.
 4. When there is a tie during ranking of top x items, which item appears in the top x is non-deterministic.  
+5. PipelineConfig is used make `process_event.py` reusable with another table. 
 
 #### SPARK CONFIGURATION
 `process_event.py` allows for different spark configuration settings. By default local configuration setting is used. 
@@ -27,32 +28,30 @@ In production workloads, the following is enabled to detect and handle skewed jo
 1. Enable AQE: `.config("spark.sql.adaptive.enabled", True)`
 2. Enable skew join optimization: `.config("spark.sql.adaptive.skewJoin.enabled", True)`
 
-To run development workloads locally, 
+### RUNNING THE PROGRAM
+Build docker in the root folder
 ```bash
-spark-submit \
-process_event.py \
---file1 <file path for dataset A> \
---file2 <file path for dataset B> \
---output_path <output file path> \
---top_x <number of top count to find> \
+ docker build -t utopia:latest .
 ```
 
-To run production workloads, configuration can be supplied
+To run development workloads locally, 
 ```bash
-spark-submit \
-  --master yarn \
-  --deploy-mode cluster \
-  --executor-memory 8g \
-  --executor-cores 4 \
-  --num-executors 10 \
-  --conf spark.sql.shuffle.partitions=160 \
-  --conf spark.sql.adaptive.enabled=true \
-  process_event.py \
-  --file1 <file path for dataset A> \
-  --file2 <file path for dataset B> \
-  --output_path <output file path> \
-  --top_x <number of top count to find> \
-  --env prod
+ # Run process_event (mount local data directories)                                    
+  docker run --rm -v <path to repo root>/data/:/data utopia:latest \
+    --file1 /data/raw/dataset_A.parquet \
+    --file2 /data/raw/dataset_B.parquet \
+    --output_path /data/processed/dataset_C \
+    --top_x <number of top count to find>
+```
+
+To run production workloads, 
+```bash
+  docker run --rm -v <path to repo root>/data/:/data utopia:latest \
+      --file1 /data/raw/dataset_A.parquet \
+      --file2 /data/raw/dataset_B.parquet \
+      --output_path /data/processed/dataset_C \
+      --top_x <number of top count to find> \
+      --env prod
 ```
 
 ## Distributed Computing Task II
