@@ -98,11 +98,11 @@ def get_top_x_ranked(counted_rdd: RDD, top_x: int) -> RDD:
 def build_location_broadcast(rdd: RDD, sc: SparkContext) -> Broadcast:
     """         
     Args:
-        rdd: RDD[Row] with fields geographical_location_oid, geographical_location.                       
-        sc: SparkContext used to broadcast the collected dictionary.
+        rdd: RDD[Row] with fields geographical_location_oid, geographical_location                       
+        sc: SparkContext used to broadcast the collected dictionary
 
     Returns:
-        Broadcast variable wrapping a dict of {geographical_location_oid:geographical_location}.
+        Broadcast variable wrapping a dict of {geographical_location_oid:geographical_location}
   """
     location_dict = rdd.map(
         lambda row: (row.geographical_location_oid, row.geographical_location)
@@ -111,6 +111,13 @@ def build_location_broadcast(rdd: RDD, sc: SparkContext) -> Broadcast:
 
 
 def enrich_with_location(top_x_rdd: RDD, bcast: Broadcast) -> RDD:
+    """
+    Args:
+        top_x_rdd: RDD of (geographical_location_oid, (item_name, rank))
+        bcast: Broadcast variable wrapping a dict of {geographical_location_oid:geographical_location}
+    Returns:
+        RDD[row] with fields geographical_location, item_rank, item_name
+    """
     return top_x_rdd.map(
         lambda kv: Row(
             geographical_location=bcast.value.get(kv[0]),
