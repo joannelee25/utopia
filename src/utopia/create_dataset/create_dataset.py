@@ -45,7 +45,7 @@ def build_dataset_b(num_rows: int, rng: np.random.Generator, seed: int) -> pd.Da
 # --- dataset_A generators ---
 
 
-def generate_location_ids(
+def sample_geo_oids(
     num_rows: int, location_pool: np.ndarray, rng: np.random.Generator
 ) -> np.ndarray:
     sampled_pool = rng.choice(location_pool, size=NUM_LOCATIONS, replace=False)
@@ -99,7 +99,7 @@ def build_dataset_a(
 ) -> pd.DataFrame:
     df = pd.DataFrame(
         {
-            "geographical_location_oid": generate_location_ids(
+            "geographical_location_oid": sample_geo_oids(
                 num_rows, location_pool, rng
             ),
             "video_camera_oid": generate_camera_ids(num_rows, NUM_CAMERAS, rng),
