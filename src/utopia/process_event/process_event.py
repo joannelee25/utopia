@@ -2,6 +2,7 @@ import argparse
 from operator import add
 
 from pyspark.broadcast import Broadcast
+from pyspark import SparkContext
 from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, Row, SparkSession
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
@@ -94,7 +95,15 @@ def get_top_x_ranked(counted_rdd: RDD, top_x: int) -> RDD:
     )
 
 
-def build_location_broadcast(rdd: RDD, sc) -> Broadcast:
+def build_location_broadcast(rdd: RDD, sc: SparkContext) -> Broadcast:
+    """         
+    Args:
+        rdd: RDD[Row] with fields geographical_location_oid, geographical_location.                       
+        sc: SparkContext used to broadcast the collected dictionary.
+
+    Returns:
+        Broadcast variable wrapping a dict of {geographical_location_oid:geographical_location}.
+  """
     location_dict = rdd.map(
         lambda row: (row.geographical_location_oid, row.geographical_location)
     ).collectAsMap()
