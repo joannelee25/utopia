@@ -7,7 +7,7 @@ from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, Row, SparkSession
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
 
-from utopia.process_event.variables import Env
+from utopia.process_event.variables import DEFAULT_CONFIG, Env, PipelineConfig
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,7 +60,7 @@ def read_parquet(spark: SparkSession, path: str) -> DataFrame:
     return spark.read.parquet(path)
 
 
-def count_unique_detections(rdd: RDD) -> RDD:
+def count_unique_detections(rdd: RDD, config: PipelineConfig = DEFAULT_CONFIG) -> RDD:
     """
     Args:
          rdd: RDD[Row] with fields  geographical_location_oid, video_camera_oid
@@ -71,10 +71,13 @@ def count_unique_detections(rdd: RDD) -> RDD:
          ) — deduplicated
          by detection_oid before counting.
     """
+    dedup_key = config.dedup_key
+    item_key = config.item_key
+    location_oid_key = config.location_oid_key
     return (
-        rdd.map(lambda row: (row.detection_oid, row))
+        rdd.map(lambda row: (getattr(row, dedup_key), row))
         .reduceByKey(lambda a, b: a)
-        .map(lambda kv: ((kv[1].item_name, kv[1].geographical_location_oid), 1))
+        .map(lambda kv: ((getattr(kv[1], item_key), getattr(kv[1], location_oid_key)), 1))
         .reduceByKey(add)
     )
 
@@ -95,22 +98,28 @@ def get_top_x_ranked(counted_rdd: RDD, top_x: int) -> RDD:
     )
 
 
-def build_location_broadcast(rdd: RDD, sc: SparkContext) -> Broadcast:
-    """         
+def build_location_broadcast(
+    rdd: RDD, sc: SparkContext, config: PipelineConfig = DEFAULT_CONFIG
+) -> Broadcast:
+    """
     Args:
-        rdd: RDD[Row] with fields geographical_location_oid, geographical_location                       
+        rdd: RDD[Row] with fields geographical_location_oid, geographical_location
         sc: SparkContext used to broadcast the collected dictionary
 
     Returns:
         Broadcast variable wrapping a dict of {geographical_location_oid:geographical_location}
   """
+    location_oid_key = config.location_dim_oid_key
+    location_name_key = config.location_name_key
     location_dict = rdd.map(
-        lambda row: (row.geographical_location_oid, row.geographical_location)
+        lambda row: (getattr(row, location_oid_key), getattr(row, location_name_key))
     ).collectAsMap()
     return sc.broadcast(location_dict)
 
 
-def enrich_with_location(top_x_rdd: RDD, bcast: Broadcast) -> RDD:
+def enrich_with_location(
+    top_x_rdd: RDD, bcast: Broadcast, config: PipelineConfig = DEFAULT_CONFIG
+) -> RDD:
     """
     Args:
         top_x_rdd: RDD of (geographical_location_oid, (item_name, rank))
@@ -118,21 +127,31 @@ def enrich_with_location(top_x_rdd: RDD, bcast: Broadcast) -> RDD:
     Returns:
         RDD[row] with fields geographical_location, item_rank, item_name
     """
+    location_col = config.output_location_col
+    rank_col = config.output_rank_col
+    item_col = config.output_item_col
     return top_x_rdd.map(
         lambda kv: Row(
-            geographical_location=bcast.value.get(kv[0]),
-            item_rank=kv[1][1],
-            item_name=kv[1][0],
+            **{
+                location_col: bcast.value.get(kv[0]),
+                rank_col: kv[1][1],
+                item_col: kv[1][0],
+            }
         )
     )
 
 
-def write_output(rdd: RDD, spark: SparkSession, output_path: str) -> None:
+def write_output(
+    rdd: RDD,
+    spark: SparkSession,
+    output_path: str,
+    config: PipelineConfig = DEFAULT_CONFIG,
+) -> None:
     OUTPUT_SCHEMA = StructType(
         [
-            StructField("geographical_location", StringType(), True),
-            StructField("item_rank", IntegerType(), False),
-            StructField("item_name", StringType(), True),
+            StructField(config.output_location_col, StringType(), True),
+            StructField(config.output_rank_col, IntegerType(), False),
+            StructField(config.output_item_col, StringType(), True),
         ]
     )
 
@@ -141,20 +160,30 @@ def write_output(rdd: RDD, spark: SparkSession, output_path: str) -> None:
     )
 
 
+def run_pipeline(
+    spark: SparkSession,
+    file1_path: str,
+    file2_path: str,
+    output_path: str,
+    top_x: int,
+    config: PipelineConfig = DEFAULT_CONFIG,
+) -> None:
+    file1_rdd = read_parquet(spark, file1_path).rdd
+    file2_rdd = read_parquet(spark, file2_path).rdd
+
+    counted_rdd = count_unique_detections(file1_rdd, config)
+    top_x_rdd = get_top_x_ranked(counted_rdd, top_x)
+    location_bcast = build_location_broadcast(file2_rdd, spark.sparkContext, config)
+    enriched_rdd = enrich_with_location(top_x_rdd, location_bcast, config)
+
+    write_output(enriched_rdd, spark, output_path, config)
+
+
 def main() -> None:
     args = parse_args()
     try:
         spark = build_spark_session(args.env)
-
-        file1_rdd = read_parquet(spark, args.file1).rdd
-        file2_rdd = read_parquet(spark, args.file2).rdd
-
-        counted_rdd = count_unique_detections(file1_rdd)
-        top_x_rdd = get_top_x_ranked(counted_rdd, args.top_x)
-        location_bcast = build_location_broadcast(file2_rdd, spark.sparkContext)
-        enriched_rdd = enrich_with_location(top_x_rdd, location_bcast)
-
-        write_output(enriched_rdd, spark, args.output_path)
+        run_pipeline(spark, args.file1, args.file2, args.output_path, args.top_x)
     finally:
         spark.stop()
 
