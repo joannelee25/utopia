@@ -186,21 +186,6 @@ def test_get_top_x_ranked_returns_correct_count(data, top_x, expected_result, sp
     assert len(result) == expected_result
 
 
-def test_get_top_x_ranked_rank_order(spark):
-    data = [
-        (("a", 1), 5),
-        (("b", 2), 10),
-        (("c", 3), 3),
-    ]
-    rdd = spark.sparkContext.parallelize(data)
-    result = {
-        geo_oid: (name, rank)
-        for geo_oid, (name, rank) in get_top_x_ranked(rdd, top_x=3).collect()
-    }
-    assert result[2][1] == 1  # geo_oid=2 ("b") has highest count → rank 1
-    assert result[1][1] == 2  # geo_oid=1 ("a") is second → rank 2
-    assert result[3][1] == 3  # geo_oid=3 ("c") is third → rank 3
-
 @pytest.mark.parametrize(
         "data, top_x, geo_id, rank", [
             (
@@ -213,6 +198,26 @@ def test_get_top_x_ranked_rank_order(spark):
                 2,
                 1,
             ),
+            (
+                [
+                    (("a", 1), 5),
+                    (("b", 2), 10),
+                    (("c", 3), 3),
+                ],
+                3,
+                1,
+                2,
+            ),
+            (
+                [
+                    (("a", 1), 5),
+                    (("b", 2), 10),
+                    (("c", 3), 3),
+                ],
+                3,
+                3,
+                3,
+            )
         ]
 )
 def test_get_top_x_ranked_rank_order(data, top_x, geo_id, rank, spark):
@@ -221,60 +226,93 @@ def test_get_top_x_ranked_rank_order(data, top_x, geo_id, rank, spark):
         geo_oid: (name, rank)
         for geo_oid, (name, rank) in get_top_x_ranked(rdd, top_x).collect()
     }
-    assert result[geo_id][1] == rank  # geo_oid=2 ("b") has highest count → rank 1
+    assert result[geo_id][1] == rank 
 
 
-def test_get_top_x_ranked_top_x_larger_than_data(spark):
-    data = [
-        (("a", 1), 5),
-        (("b", 2), 3),
-    ]
+@pytest.mark.parametrize(
+        "data, top_x, expected_count", [
+            (
+                [
+                    (("a", 1), 5),
+                    (("b", 2), 3),   
+                ],
+                100,
+                2
+            ),
+            (
+                [
+                    (("a", 1), 5),
+                    (("b", 2), 10),
+                    (("c", 3), 3),
+                ],
+                2,
+                2
+            )
+        ]
+)
+def test_get_top_x_ranked_top_x_filter(data, top_x, expected_count, spark):
     rdd = spark.sparkContext.parallelize(data)
-    result = get_top_x_ranked(rdd, top_x=100).collect()
-    assert len(result) == 2
+    result = get_top_x_ranked(rdd, top_x).collect()
+    assert len(result) == expected_count
 
-
-def test_get_top_x_ranked_top_x_smaller_than_data(spark):
-    data = [
-        (("a", 1), 5),
-        (("b", 2), 10),
-        (("c", 3), 3),
-    ]
-    rdd = spark.sparkContext.parallelize(data)
-    result = get_top_x_ranked(rdd, top_x=2).collect()
-    assert len(result) == 2
-
-
-def test_build_location_broadcast(spark):
-    rows = [
-        Row(geographical_location_oid=1, geographical_location="Paris"),
-        Row(geographical_location_oid=2, geographical_location="Tokyo"),
-    ]
+@pytest.mark.parametrize(
+        "rows, key, expected_value", [
+            (
+                [
+                    Row(geographical_location_oid=1, geographical_location="Paris"),
+                    Row(geographical_location_oid=2, geographical_location="Tokyo"),
+                ],
+                1,
+                "Paris"
+            ),
+            (
+                [
+                    Row(geographical_location_oid=1, geographical_location="Paris"),
+                    Row(geographical_location_oid=2, geographical_location="Tokyo"),
+                ],
+                2,
+                "Tokyo"
+            )
+        ]
+)
+def test_build_location_broadcast(rows, key, expected_value, spark):
     rdd = spark.sparkContext.parallelize(rows)
     bcast = build_location_broadcast(rdd, spark.sparkContext)
-    assert bcast.value[1] == "Paris"
-    assert bcast.value[2] == "Tokyo"
+    assert bcast.value[key] == expected_value
 
 
-def test_enrich_with_location(spark):
-    top_x_rdd = spark.sparkContext.parallelize([(1, ("cat", 1))])
-    rows = [Row(geographical_location_oid=1, geographical_location="Paris")]
+@pytest.mark.parametrize(
+        "data, broadcast_row, expected_geographical_location, expected_item_rank, expected_item_name", [
+            (
+                [
+                    (1, ("cat", 1))
+                ],
+                [
+                    Row(geographical_location_oid=1, geographical_location="Paris")
+                ],
+                "Paris",
+                1,
+                "cat"
+            ),
+            (
+                [
+                    (999, ("cat", 1))
+                ],
+                [
+                    Row(geographical_location_oid=1, geographical_location="Paris")
+                ],
+                None,
+                1,
+                "cat"
+            )
+        ]
+)
+def test_enrich_with_location(data, broadcast_row, expected_geographical_location, expected_item_rank, expected_item_name, spark):
+    top_x_rdd = spark.sparkContext.parallelize(data)
     bcast = build_location_broadcast(
-        spark.sparkContext.parallelize(rows), spark.sparkContext
+        spark.sparkContext.parallelize(broadcast_row), spark.sparkContext
     )
     result = enrich_with_location(top_x_rdd, bcast).collect()
-    assert len(result) == 1
-    assert result[0].geographical_location == "Paris"
-    assert result[0].item_rank == 1
-    assert result[0].item_name == "cat"
-
-
-def test_enrich_with_location_missing_key(spark):
-    top_x_rdd = spark.sparkContext.parallelize([(999, ("cat", 1))])
-    rows = [Row(geographical_location_oid=1, geographical_location="Paris")]
-    bcast = build_location_broadcast(
-        spark.sparkContext.parallelize(rows), spark.sparkContext
-    )
-    result = enrich_with_location(top_x_rdd, bcast).collect()
-    assert len(result) == 1
-    assert result[0].geographical_location is None
+    assert result[0].geographical_location == expected_geographical_location
+    assert result[0].item_rank == expected_item_rank
+    assert result[0].item_name == expected_item_name

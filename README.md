@@ -1,7 +1,6 @@
 # UTOPIA
 
 ## Distributed Computing Task I
-I started this task by creating `create_dataset.py` to generate sample input Dataset A and Dataset B files to be used for local testing.
 
 ### Assumptions
 
@@ -15,14 +14,14 @@ The output parquet file after processing uses geographical_location from Dataset
 | item_name | varchar(5000) | Item name
 
 #### Tie breaking
-If there are 2 items having the same highest count and top x=1, the record that is filtered away is non-deterministic.
+1. When there is a duplicate in detection_oid with different item name, which item is counted is non-deterministic.
+2. When there is a tie during ranking of top x items, which item appears in the top x is non-deterministic.  
 
 ### Design considerations
 1. Functional programming is used instead of Object Oriented Programming as functional programming is aligned with spark's distributed structure for parallelism in data processing.
 2. In `process_event.py`, broadcast is used for the small static file dataset B to cache the data at each worker node instead of doing a join which introduces a shuffle.
-3. When there is a duplicate in detection_oid with different item name, which item is counted is non-deterministic.
-4. When there is a tie during ranking of top x items, which item appears in the top x is non-deterministic.  
-5. PipelineConfig is used make `process_event.py` reusable with another table. 
+3. PipelineConfig is used make `process_event.py` reusable with another table.
+4. poetry is used as the package manager for python libraries 
 
 #### SPARK CONFIGURATION
 `process_event.py` allows for different spark configuration settings. By default local configuration setting is used. 
@@ -68,13 +67,27 @@ The salting technique can be used to spread the hot key. The function `count_uni
 ```
 import random
 
-def count_unique_detections(rdd: RDD, salt_partitions: int = 10) -> RDD:
-     return (
-         rdd.map(lambda row: (row.detection_oid,row))
-         .reduceByKey(lambda a, b: a)
-         .map(lambda kv: ((kv[1].item_name, kv[1].geographical_location_oid, random.randrange(salt_partitions)),1,))
-         .reduceByKey(add)
-         .map(lambda kv: ((kv[0][0], kv[0][1]), kv[1]))
-         .reduceByKey(add)
-     )
+def count_unique_detections(rdd: RDD, salt_partitions: int=10, config: PipelineConfig = DEFAULT_CONFIG) -> RDD:
+    """
+    Args:
+         rdd: RDD[Row] with fields geographical_location_oid, video_camera_oid
+         , detection_oid, item_name, timestamp_detected.
+
+    Returns:
+         RDD of ((item_name, geographical_location_oid), int representing count
+         ) — deduplicated
+         by detection_oid before counting.
+    """
+    
+    dedup_key = config.dedup_key
+    item_key = config.item_key
+    location_oid_key = config.location_oid_key
+    return (
+        rdd.map(lambda row: (getattr(row, dedup_key), row))
+        .reduceByKey(lambda a, b: a)
+        .map(lambda kv: ((getattr(kv[1], item_key), getattr(kv[1], location_oid_key), random.randrange(salt_partitions)), 1))
+        .reduceByKey(add)
+        .map(lambda kv: ((kv[0][0], kv[0][1]), kv[1]))
+        .reduceByKey(add)
+    )
 ```
