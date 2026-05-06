@@ -24,6 +24,11 @@ The output parquet file after processing uses geographical_location from Dataset
 4. poetry is used as the package manager for python libraries
 
 
+### Time/Space complexity and Shuffle
+There are a total of 3 shuffles. In `count_unique_detections`, there are 2 shuffles as each `reduceByKey` is a shuffle. In `get_top_x_ranked`, `sortBy` is a shuffle.
+
+Let D = distinct (item_name, location_oid) pairs. Sorting in `get_top_x_ranked` is the most expensive because it requires a total ordering across all partitions. The time complexity for sort is O(D log D) and space complexity is O(D).
+
 #### SPARK CONFIGURATION
 `process_event.py` allows for different spark configuration settings. By default local configuration setting is used. 
 
