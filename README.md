@@ -14,6 +14,9 @@ The output parquet file after processing uses geographical_location from Dataset
 | item_rank | int | item_rank=1 corresponds to the most popular item detected in geographical location        |
 | item_name | varchar(5000) | Item name
 
+#### Tie breaking
+If there are 2 items having the same highest count and top x=1, the record that is filtered away is non-deterministic.
+
 ### Design considerations
 1. Functional programming is used instead of Object Oriented Programming as functional programming is aligned with spark's distributed structure for parallelism in data processing.
 2. In `process_event.py`, broadcast is used for the small static file dataset B to cache the data at each worker node instead of doing a join which introduces a shuffle.

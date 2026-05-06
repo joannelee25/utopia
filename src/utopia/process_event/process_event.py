@@ -63,7 +63,7 @@ def read_parquet(spark: SparkSession, path: str) -> DataFrame:
 def count_unique_detections(rdd: RDD, config: PipelineConfig = DEFAULT_CONFIG) -> RDD:
     """
     Args:
-         rdd: RDD[Row] with fields  geographical_location_oid, video_camera_oid
+         rdd: RDD[Row] with fields geographical_location_oid, video_camera_oid
          , detection_oid, item_name, timestamp_detected.
 
     Returns:
