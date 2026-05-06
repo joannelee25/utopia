@@ -21,7 +21,8 @@ The output parquet file after processing uses geographical_location from Dataset
 1. Functional programming is used instead of Object Oriented Programming as functional programming is aligned with spark's distributed structure for parallelism in data processing.
 2. In `process_event.py`, broadcast is used for the small static file dataset B to cache the data at each worker node instead of doing a join which introduces a shuffle.
 3. PipelineConfig is used make `process_event.py` reusable with another table.
-4. poetry is used as the package manager for python libraries 
+4. poetry is used as the package manager for python libraries
+
 
 #### SPARK CONFIGURATION
 `process_event.py` allows for different spark configuration settings. By default local configuration setting is used. 
@@ -39,21 +40,29 @@ Build docker in the root folder
 To run development workloads locally, 
 ```bash
  # Run process_event (mount local data directories)                                    
-  docker run --rm -v <path to repo root>/data/:/data utopia:latest \
+docker run --rm -v <path to repo root>/data/:/data utopia:latest \
+    --file1 /data/<dataset_A path> \
+    --file2 /data/<dataset_B path> \
+    --output_path /data/<output data path> \
+    --top_x <int for num of top pairs>
+```
+For example, I ran the following command:
+```bash
+docker run --rm -v <path to repo root>/data/:/data utopia:latest \
     --file1 /data/raw/dataset_A.parquet \
     --file2 /data/raw/dataset_B.parquet \
     --output_path /data/processed/dataset_C \
-    --top_x <number of top count to find>
+    --top_x 5
 ```
 
 To run production workloads, 
 ```bash
-  docker run --rm -v <path to repo root>/data/:/data utopia:latest \
-      --file1 /data/raw/dataset_A.parquet \
-      --file2 /data/raw/dataset_B.parquet \
-      --output_path /data/processed/dataset_C \
-      --top_x <number of top count to find> \
-      --env prod
+docker run --rm -v <path to repo root>/data/:/data utopia:latest \
+    --file1 /data/raw/dataset_A.parquet \
+    --file2 /data/raw/dataset_B.parquet \
+    --output_path /data/processed/dataset_C \
+    --top_x <number of top count to find> \
+    --env prod
 ```
 
 ## Distributed Computing Task II
@@ -78,7 +87,7 @@ def count_unique_detections(rdd: RDD, salt_partitions: int=10, config: PipelineC
          ) — deduplicated
          by detection_oid before counting.
     """
-    
+
     dedup_key = config.dedup_key
     item_key = config.item_key
     location_oid_key = config.location_oid_key
