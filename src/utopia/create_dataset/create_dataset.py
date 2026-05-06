@@ -99,9 +99,7 @@ def build_dataset_a(
 ) -> pd.DataFrame:
     df = pd.DataFrame(
         {
-            "geographical_location_oid": sample_geo_oids(
-                num_rows, location_pool, rng
-            ),
+            "geographical_location_oid": sample_geo_oids(num_rows, location_pool, rng),
             "video_camera_oid": generate_camera_ids(num_rows, NUM_CAMERAS, rng),
             "detection_oid": generate_detection_ids(num_rows, duplicate_ratio, rng),
             "item_name": generate_item_names(num_rows, NUM_ITEMS, seed),

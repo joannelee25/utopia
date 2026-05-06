@@ -1,8 +1,8 @@
 import argparse
 from operator import add
 
-from pyspark.broadcast import Broadcast
 from pyspark import SparkContext
+from pyspark.broadcast import Broadcast
 from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, Row, SparkSession
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
@@ -77,7 +77,9 @@ def count_unique_detections(rdd: RDD, config: PipelineConfig = DEFAULT_CONFIG) -
     return (
         rdd.map(lambda row: (getattr(row, dedup_key), row))
         .reduceByKey(lambda a, b: a)
-        .map(lambda kv: ((getattr(kv[1], item_key), getattr(kv[1], location_oid_key)), 1))
+        .map(
+            lambda kv: ((getattr(kv[1], item_key), getattr(kv[1], location_oid_key)), 1)
+        )
         .reduceByKey(add)
     )
 
@@ -107,8 +109,9 @@ def build_location_broadcast(
         sc: SparkContext used to broadcast the collected dictionary
 
     Returns:
-        Broadcast variable wrapping a dict of {geographical_location_oid:geographical_location}
-  """
+        Broadcast variable wrapping a dict of
+        {geographical_location_oid: geographical_location}
+    """
     location_oid_key = config.location_dim_oid_key
     location_name_key = config.location_name_key
     location_dict = rdd.map(
@@ -123,7 +126,8 @@ def enrich_with_location(
     """
     Args:
         top_x_rdd: RDD of (geographical_location_oid, (item_name, rank))
-        bcast: Broadcast variable wrapping a dict of {geographical_location_oid:geographical_location}
+        bcast: Broadcast variable wrapping a dict of
+        {geographical_location_oid: geographical_location}
     Returns:
         RDD[row] with fields geographical_location, item_rank, item_name
     """
